@@ -7,28 +7,72 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
+  DeviceEventEmitter,
+  Alert,
+  Vibration, 
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { logout, fetchTopics } from '../store/slices/userSlice';
+
+// Haptic feedback instead of sound
+const welcomeVibration = () => {
+  Vibration.vibrate(100); // Vibrate for 100ms
+};
 
 export default function TopicsScreen() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const { viewedTopics, name, isLoggedIn, loading, error } = useAppSelector((state) => state.user);
 
-  // Fetch topics when component mounts
+  // EVENT HANDLER - Listen for login events
+  useEffect(() => {
+    const subscription = DeviceEventEmitter.addListener(
+      'userLoggedIn',
+      (data) => {
+        Alert.alert(
+          '👋 Welcome!',
+          `Hello ${data.name}! You logged in at ${data.time}`
+        );
+        
+        welcomeVibration();
+      }
+    );
+
+    return () => subscription.remove();
+  }, []);
+
+  // EVENT HANDLER - Listen for topic completion
+  useEffect(() => {
+    const subscription = DeviceEventEmitter.addListener(
+      'topicCompleted',
+      (data) => {
+        Alert.alert(
+          '🎯 Topic Completed!',
+          `You finished "${data.title}". Keep going!`
+        );
+        
+        // Short vibration for completion
+        Vibration.vibrate(50);
+      }
+    );
+
+    return () => subscription.remove();
+  }, []);
+
+  // Fetch topics when component mounts or user logs in
   useEffect(() => {
     if (isLoggedIn) {
       dispatch(fetchTopics());
     }
-  }, [isLoggedIn]);
+  }, [isLoggedIn, dispatch]);
 
+  // Protect route
   useEffect(() => {
     if (!isLoggedIn) {
       router.replace('/(tabs)/login');
     }
-  }, [isLoggedIn]);
+  }, [isLoggedIn, router]);
 
   if (!isLoggedIn) {
     return null;
@@ -94,7 +138,7 @@ export default function TopicsScreen() {
           <Text style={styles.welcome}>Welcome, {name}!</Text>
           <Text style={styles.progress}>Progress: {viewedCount}/{viewedTopics.length}</Text>
         </View>
-        <TouchableOpacity onPress={handleLogout}>
+        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
           <Text style={styles.logout}>Logout</Text>
         </TouchableOpacity>
       </View>
@@ -113,9 +157,10 @@ export default function TopicsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1,
-     backgroundColor: '#f5f5f5'
-     },
+  container: { 
+    flex: 1,
+    backgroundColor: '#f5f5f5'
+  },
   loadingContainer: { 
     flex: 1, 
     justifyContent: 'center', 
@@ -165,11 +210,16 @@ const styles = StyleSheet.create({
     color: '#666', 
     marginTop: 5 
   },
+  logoutButton: {
+    padding: 8,
+    borderRadius: 5,
+    backgroundColor: '#ffebee',
+  },
   logout: { 
     color: 'red',
-     fontSize: 14,
-      fontWeight: '600' 
-    },
+    fontSize: 14,
+    fontWeight: '600' 
+  },
   list: { 
     padding: 15 
   },

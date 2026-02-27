@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  DeviceEventEmitter,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
@@ -23,9 +24,16 @@ export default function TopicDetailsScreen() {
 
   useEffect(() => {
     if (topic && !topic.viewed) {
+      // Mark as viewed in Redux
       dispatch(markTopicViewed(topicId));
+      
+      // Emit event for temporary effects
+      DeviceEventEmitter.emit('topicCompleted', {
+        id: topic.id,
+        title: topic.title
+      });
     }
-  }, [topicId, topic]);
+  }, [topicId, topic, dispatch]);
 
   if (loading) {
     return (
@@ -38,7 +46,7 @@ export default function TopicDetailsScreen() {
   if (!topic) {
     return (
       <View style={styles.container}>
-        <Text>Topic not found!</Text>
+        <Text style={styles.errorText}>Topic not found!</Text>
         <TouchableOpacity 
           style={styles.backButton}
           onPress={() => router.push('/(tabs)/topics')}
@@ -56,16 +64,11 @@ export default function TopicDetailsScreen() {
         
         {topic.viewed && (
           <View style={styles.viewedContainer}>
-            <Text style={styles.viewedMessage}>✓ You've viewed this topic</Text>
+            <Text style={styles.viewedMessage}>✓ You've completed this topic</Text>
           </View>
         )}
         
         <Text style={styles.body}>{topic.content}</Text>
-        
-        <View style={styles.metaContainer}>
-          <Text style={styles.metaText}>Topic ID: {topic.id}</Text>
-          <Text style={styles.metaText}>Source: JSONPlaceholder API</Text>
-        </View>
       </ScrollView>
 
       <TouchableOpacity 
@@ -115,16 +118,11 @@ const styles = StyleSheet.create({
     color: '#444',
     marginBottom: 20,
   },
-  metaContainer: {
-    marginTop: 20,
-    padding: 15,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 8,
-  },
-  metaText: {
-    fontSize: 12,
-    color: '#6c757d',
-    marginBottom: 5,
+  errorText: {
+    fontSize: 18,
+    color: 'red',
+    textAlign: 'center',
+    marginTop: 50,
   },
   backButton: { 
     backgroundColor: '#6c757d', 

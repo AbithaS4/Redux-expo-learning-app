@@ -6,10 +6,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  DeviceEventEmitter,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAppDispatch } from '../store/hooks';
-import { login } from '../store/slices/userSlice';
+import { useAppDispatch } from './../store/hooks';
+import { login } from './../store/slices/userSlice';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -32,8 +33,16 @@ export default function LoginScreen() {
     const user = validUsers.find(u => u.email === email && u.password === password);
 
     if (user) {
+      // EMIT EVENT for temporary effects
+      DeviceEventEmitter.emit('userLoggedIn', {
+        name: user.name,
+        time: new Date().toLocaleTimeString()
+      });
+      
+      //  REDUX for permanent storage
       dispatch(login({ name: user.name, email: user.email }));
-      router.push('/(tabs)/topics');
+      
+      router.replace('/(tabs)/topics');
     } else {
       Alert.alert('Error', 'Invalid credentials');
     }
@@ -49,6 +58,7 @@ export default function LoginScreen() {
         value={email}
         onChangeText={setEmail}
         autoCapitalize="none"
+        keyboardType="email-address"
       />
       
       <TextInput
@@ -64,8 +74,9 @@ export default function LoginScreen() {
       </TouchableOpacity>
 
       <View style={styles.hint}>
-        <Text>Test: john@example.com / john123</Text>
-        <Text>jane@example.com / jane123</Text>
+        <Text style={styles.hintText}>Test Accounts:</Text>
+        <Text style={styles.hintText}>john@example.com / john123</Text>
+        <Text style={styles.hintText}>jane@example.com / jane123</Text>
       </View>
     </View>
   );
@@ -75,31 +86,47 @@ const styles = StyleSheet.create({
   container: { 
     flex: 1, 
     justifyContent: 'center', 
-    padding: 20 
+    padding: 20,
+    backgroundColor: '#f5f5f5',
   },
   title: { 
     fontSize: 28, 
-    fontWeight: 'bold',
-     textAlign: 'center',
-      marginBottom: 30 
-    },
+    fontWeight: 'bold', 
+    textAlign: 'center', 
+    marginBottom: 30,
+    color: '#333',
+  },
   input: { 
-    borderWidth: 1,
-     borderColor: '#ddd',
-      padding: 12, 
-      borderRadius: 8, 
-      marginBottom: 15 },
-  button: {
-     backgroundColor: '#007AFF',
-     padding: 15, borderRadius: 8,
-      alignItems: 'center' 
-    },
+    borderWidth: 1, 
+    borderColor: '#ddd', 
+    padding: 15, 
+    borderRadius: 8, 
+    marginBottom: 15,
+    backgroundColor: 'white',
+    fontSize: 16,
+  },
+  button: { 
+    backgroundColor: '#007AFF', 
+    padding: 15, 
+    borderRadius: 8, 
+    alignItems: 'center',
+    marginTop: 10,
+  },
   buttonText: { 
     color: 'white', 
-    fontSize: 16,
-     fontWeight: '600'
-     },
+    fontSize: 18, 
+    fontWeight: '600' 
+  },
   hint: { 
-    marginTop: 30,
-    alignItems: 'center' },
+    marginTop: 30, 
+    alignItems: 'center',
+    padding: 15,
+    backgroundColor: '#e8f5e8',
+    borderRadius: 8,
+  },
+  hintText: {
+    fontSize: 14,
+    color: '#2e7d32',
+    marginVertical: 2,
+  },
 });

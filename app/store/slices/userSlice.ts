@@ -8,16 +8,24 @@ export interface Topic {
   viewed: boolean;
 }
 
+// Define the API response type
+interface ApiPost {
+  id: number;
+  title: string;
+  body: string;
+  userId: number;
+}
+
 // Create async thunk for fetching topics
-export const fetchTopics = createAsyncThunk(
+export const fetchTopics = createAsyncThunk<Topic[]>(
   'user/fetchTopics',
   async () => {
     // Using JSONPlaceholder - fake API
     const response = await fetch('https://jsonplaceholder.typicode.com/posts?_limit=5');
-    const data = await response.json();
+    const data: ApiPost[] = await response.json();
     
     // Transform API data to match our Topic format
-    return data.map((post: any, index: number) => ({
+    return data.map((post: ApiPost, index: number) => ({
       id: index + 1,
       title: post.title,
       content: post.body,
@@ -34,7 +42,7 @@ export interface UserState {
   userProgress: {
     [email: string]: Topic[];
   };
-  //Loading states
+  // Loading states
   loading: boolean;
   error: string | null;
 }
@@ -62,13 +70,25 @@ const userSlice = createSlice({
       
       // Load user's saved progress
       if (state.userProgress[email]) {
-        state.viewedTopics = state.userProgress[email];
+        // Create a deep copy to preserve viewed status
+        state.viewedTopics = state.userProgress[email].map((topic: Topic) => ({ 
+          ...topic, 
+          viewed: topic.viewed 
+        }));
+        console.log(`✅ Loaded ${email}'s progress:`, state.viewedTopics.filter((t: Topic) => t.viewed).length, 'viewed');
+      } else {
+        console.log(`🆕 New user: ${email}`);
       }
     },
     
     logout: (state) => {
       if (state.email) {
-        state.userProgress[state.email] = state.viewedTopics.map(t => ({ ...t }));
+        // Save current progress before logout
+        state.userProgress[state.email] = state.viewedTopics.map((topic: Topic) => ({ 
+          ...topic, 
+          viewed: topic.viewed 
+        }));
+        console.log(`💾 Saved ${state.email}'s progress:`, state.viewedTopics.filter((t: Topic) => t.viewed).length, 'viewed');
       }
       
       state.name = '';
@@ -79,22 +99,31 @@ const userSlice = createSlice({
     
     markTopicViewed: (state, action: PayloadAction<number>) => {
       const topicId = action.payload;
-      const topic = state.viewedTopics.find(t => t.id === topicId);
       
-      if (topic && !topic.viewed) {
-        topic.viewed = true;
-        
-        if (state.email) {
-          state.userProgress[state.email] = state.viewedTopics.map(t => ({ ...t }));
+      // Create a new array with updated topic
+      state.viewedTopics = state.viewedTopics.map((topic: Topic) => {
+        if (topic.id === topicId && !topic.viewed) {
+          return { ...topic, viewed: true };
         }
+        return topic;
+      });
+      
+      // Immediately save to userProgress
+      if (state.email) {
+        state.userProgress[state.email] = state.viewedTopics.map((topic: Topic) => ({ 
+          ...topic, 
+          viewed: topic.viewed 
+        }));
+        console.log(`📝 Marked topic ${topicId} viewed for ${state.email}`);
       }
     },
     
     resetProgress: (state) => {
-      state.viewedTopics = state.viewedTopics.map(t => ({ ...t, viewed: false }));
+      state.viewedTopics = state.viewedTopics.map((topic: Topic) => ({ ...topic, viewed: false }));
       if (state.email) {
-        state.userProgress[state.email] = state.viewedTopics.map(t => ({ ...t, viewed: false }));
+        state.userProgress[state.email] = state.viewedTopics.map((topic: Topic) => ({ ...topic, viewed: false }));
       }
+      console.log(`🔄 Reset progress for ${state.email}`);
     },
   },
   // Handle async states
@@ -104,13 +133,35 @@ const userSlice = createSlice({
         state.loading = true;
         state.error = null;
       })
-      .addCase(fetchTopics.fulfilled, (state, action) => {
+      .addCase(fetchTopics.fulfilled, (state, action: PayloadAction<Topic[]>) => {
         state.loading = false;
-        state.viewedTopics = action.payload;
-        // Save to user progress if logged in
-        if (state.email) {
-          state.userProgress[state.email] = action.payload;
+        
+        // IMPORTANT: Preserve viewed status when fetching new topics
+        if (state.email && state.userProgress[state.email]) {
+          // User has saved progress - merge with new topics
+          const savedTopics = state.userProgress[state.email];
+          const newTopics = action.payload;
+          
+          // Merge: keep viewed status from saved topics
+          state.viewedTopics = newTopics.map((newTopic: Topic) => {
+            const savedTopic = savedTopics.find((st: Topic) => st.id === newTopic.id);
+            if (savedTopic) {
+              return { ...newTopic, viewed: savedTopic.viewed };
+            }
+            return newTopic;
+          });
+          
+          // Update userProgress with merged data
+          state.userProgress[state.email] = state.viewedTopics.map((topic: Topic) => ({ ...topic }));
+        } else {
+          // New user or no saved progress
+          state.viewedTopics = action.payload;
+          if (state.email) {
+            state.userProgress[state.email] = action.payload.map((topic: Topic) => ({ ...topic }));
+          }
         }
+        
+        console.log(`📥 Fetched topics for ${state.email || 'guest'}`);
       })
       .addCase(fetchTopics.rejected, (state, action) => {
         state.loading = false;
